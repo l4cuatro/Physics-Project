@@ -1,3 +1,5 @@
+#include <TimeLib.h>
+
 /*
 Voltmeter
   Input voltage goes to breadboard row 2
@@ -21,8 +23,8 @@ Ammeter
 
 
 Comparator Notes
-  Non-Invert is input voltage
-  Invert is reference voltage
+  Non-Invert is sensor voltage
+  Invert is threshold voltage
 
 
 */
@@ -44,9 +46,25 @@ Comparator Notes
 #define PULLEY_ENCODER_PIN_1 ((byte)14)
 #define PULLEY_ENCODER_PIN_2 ((byte)15)
 
+
 double voltScale = .25;
 double ampFac = (1.0);
 double frictionCoeff = (1.0);
+
+
+
+volatile int redEncCt = 0,
+  blueEncCt = 0;
+
+void redIncrement() {
+  redEncCt++;
+}
+
+void blueIncrement() {
+  blueEncCt++;
+}
+
+
 
 class Motor {
   private:
@@ -96,7 +114,7 @@ class DigiSensor {
 class Encoder : public DigiSensor {
   private:
     double speed;
-    int time, timeLast;
+    time_t time, timeLast;
     
   public:
     void increment() {
@@ -104,9 +122,14 @@ class Encoder : public DigiSensor {
     }
     void update() {
       timeLast = time;
-      //time = getTime();
+      time = now();
       speed = (1.0 * (val - valLast) / (time - timeLast));
-    } 
+    }
+    void update(int val) {
+      valLast = this->val;
+      this->val = val;
+      update();
+    }
     Encoder(byte pin) : DigiSensor(pin) {
       time = timeLast = 0;
       speed = 0;
@@ -189,38 +212,17 @@ class Ammeter {
     double getCurrent() { return current; }
 };
 
-class Brake {
-  private:
-    double brakeTorque, convertScale; //Converts rotational displacement to braking torque'
-    int rotation;
-    Encoder pulleyEnc1, pulleyEnc2;
-    Motor pulleyMtr;
-    
-  public:
-    double getBrakeTorque() { return brakeTorque; }
-    void update() {
-      
-    }
-
-    Brake(byte encPin1, byte encPin2, byte mtrPin, double convertScale) : pulleyEnc1(encPin1), pulleyEnc2(encPin2), pulleyMtr(mtrPin) {
-      rotation = brakeTorque = 0;
-      this->convertScale = convertScale;
-    }
-    
-};
-
 class SensorArray {
   public:
     Ammeter amp;
     Voltmeter volt;
     Encoder enc;
-    Brake brake;
+    
 
-    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, byte brakeEncPin1, byte brakeEncPin2, byte brakeMtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
+    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
       amp(ampPin1, ampPin2, ampScale, ampScale, convertToAmps),
       volt(voltPin, voltScale),
-      enc(encPin),
-      brake(brakeEncPin1, brakeEncPin2, brakeMtrPin, convertToFriction) {
+      enc(encPin) {
       
     }
     
@@ -228,7 +230,6 @@ class SensorArray {
       enc.update();
       amp.update();
       volt.update();
-      brake.update();
     }
       
 };
@@ -241,26 +242,34 @@ class Experiment {
       current,
       voltage,
       efficiency;
+    time_t time;
 
     SensorArray sensors;
     
     void update() {
       sensors.update();
-      torque = sensors.brake.getBrakeTorque();
+      time = now();
       speed = sensors.enc.getSpeed();
       current = sensors.amp.getCurrent();
       voltage = sensors.volt.getVoltage();
       efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
 
-    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, byte brakeEncPin1, byte brakeEncPin2, byte brakeMtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
-      sensors(ampPin1, ampPin2, voltPin, encPin, brakeEncPin1, brakeEncPin2, brakeMtrPin, ampScale, convertToAmps, voltScale, convertToFriction) {
+    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
+      sensors(ampPin1, ampPin2, voltPin, encPin, ampScale, convertToAmps, voltScale, convertToFriction) {
 
       torque = speed = current = voltage = 0;
     }
 
-    void write() {
-      
+    void write(XMLWriter* xml) {
+       xml->tagOpen("Values");
+       xml->writeNode("time", time);
+       xml->writeNode("current", current);
+       xml->writeNode("voltage", voltage);
+       xml->writeNode("torque", torque);
+       xml->writeNode("speed", speed);
+       xml->writeNode("efficiency", efficiency);
+       xml->tagClose();
     }
     
 };
@@ -268,17 +277,20 @@ class Experiment {
 Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     VOLT_PIN,
     ENCODER_PIN,
-    PULLEY_ENCODER_PIN_1, PULLEY_ENCODER_PIN_2, PULLEY_MTR_PIN,
     voltScale, ampFac, voltScale, frictionCoeff);
 
 void setup() {
   // put your setup code here, to run once:
-  attachInterrupt(digitalPinToInterrupt(COLOR_1R_PIN), experiment.sensors.enc.increment, RISING);
+  attachInterrupt(digitalPinToInterrupt(COLOR_1R_PIN), redIncrement, RISING);
+  attachInterrupt(digitalPinToInterrupt(COLOR_1B_PIN), blueIncrement, RISING);
+  File results = SD.open("results.xml");
+  XMLWriter Xml(results);
+  
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   experiment.update();
-  experiment.write();
+  experiment.write(Xml);
   delay(50);
 }

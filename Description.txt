@@ -4,23 +4,21 @@ Measuring: Voltage, Current, Motor Speed, Motor Torque
 
 ----------------------------------------------------------------------
 
-Voltage: Assumed based on power supply output, indicated using pogo pin 
+Voltage: Measured with voltmeter just before motor, passed through voltage divider
 
-Current: Measured using clamp-on ammeter before motor
+Current: Measured using shunt resistor and dual voltmeters passed through voltage dividers
 
 Motor Speed: Measured using encoder and microcontroller timer
 
-Motor Torque: Measured using disc brake, pulley, 393 motor, and Vex encoder
+Motor Torque: Measured using disc brake and spring scale
 	Disc brake mounts to wood frame
 	Brake rotor with custom hub mounts to motor axle
-	Disc brake cable forms short loop (soldered/welded)
-	1/8" string attachs to brake cable via loop
-	Other end of string attaches to Vex winch with block-and-tackle reduction
-	Vex winch attaches via axle to 393 motor and encoder
+	Connect paracord to brake cable
+	Spring scale attaches to paracord and eyebolt on particle board
 	
-Braking Torque: Calculated using rotation of Vex winch
-	Empirical testing of kinetic friction to develop model
-		Kinetic friction as a function of winch rotational displacement
+Braking Torque: Calculated using spring scale reading
+	Empirically determine relationship between cable tension and friction
+	Compute torque from friction
 
 -------------------------------------------------------------------------
 
@@ -39,40 +37,23 @@ Wood
 	
 Teensy/Arduino/alternate microcontroller
 
-Vex BAG Motor
-	12V, this is what we test
-	
-Vex CIM-ile
-	Converts BAG output shaft to CIM output shaft
-	Allows for use of CIM-compatible parts
-	
-8mm Keyed to 1/2" Hex Shaft Adapter
-	Convert CIM output shaft to gear-compatible 1/2" hex shaft
 
 60T 1/2" Hex Spur Gear
 	Mount brake rotor to 1/2" shaft
 	Drill 6 holes to align with brake rotor mounting holes
 
-AndyMark CIMcoder (magnetic encoder)
-	Measure rotation of motor shaft
-	Calculate rotational velocity
+Spring scale
+	Used to measure brake cable tension
+	Used in torque calculation
+	Experimentally determine kinetic friction as a function of winch rotational displacement
 
-Vex 393 motor
-	Controls disc brake via winch & cable
+Color Sensor
+	Used to measure rotation of axle
 
-Vex quadrature encoder
-	Used to calculate braking force & therefore motor torque
-
-1/8" string
-	Connects disc brake cable to winch & motor
+Paracord
+	Used to attach spring scale to brake cable
 
 100A ammeter (non-invasive if possible)
-
-Vex pulleys
-	Block-and-tackle for disc brake tensioning
-	
-Spring scale
-	Experimentally determine kinetic friction as a function of winch rotational displacement
 
 Gearbox
 	Connect motor to disc brake shaft
