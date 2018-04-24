@@ -1,4 +1,7 @@
 #include <TimeLib.h>
+#include <SPI.h>
+#include <SD.h>
+#include <XMLWriter.h>
 
 /*
 Voltmeter
@@ -33,25 +36,18 @@ Comparator Notes
 #define AMP_1_PIN ((byte)1)
 #define AMP_2_PIN ((byte)2)
 #define VOLT_PIN ((byte)3)
-#define ENCODER_PIN ((byte)4)
-#define COLOR_1R_PIN ((byte)5)
-#define COLOR_1G_PIN ((byte)6)
-#define COLOR_1B_PIN ((byte)7)
-#define COLOR_1W_PIN ((byte)8)
-#define COLOR_2R_PIN ((byte)9)
-#define COLOR_2G_PIN ((byte)10)
-#define COLOR_2B_PIN ((byte)11)
-#define COLOR_2W_PIN ((byte)12)
-#define PULLEY_MTR_PIN ((byte)13)
-#define PULLEY_ENCODER_PIN_1 ((byte)14)
-#define PULLEY_ENCODER_PIN_2 ((byte)15)
+#define COLOR_1R_PIN ((byte)4)
+#define COLOR_1B_PIN ((byte)5)
+#define ROCKER_PIN ((byte)6)
+#define STATUS_LED_PIN ((byte)7)
 
 
 double voltScale = .25;
 double ampFac = (1.0);
 double frictionCoeff = (1.0);
 
-
+File results = SD.open("results.xml");
+XMLWriter Xml(&results);
 
 volatile int redEncCt = 0,
   blueEncCt = 0;
@@ -84,6 +80,7 @@ class Motor {
       else
         this->pwr = 256;
       analogWrite(pin, pwr);
+      return pwr;
     }
   
 };
@@ -216,18 +213,19 @@ class SensorArray {
   public:
     Ammeter amp;
     Voltmeter volt;
-    Encoder enc;
+    Encoder encR, encB;
     
 
-    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
+    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
       amp(ampPin1, ampPin2, ampScale, ampScale, convertToAmps),
       volt(voltPin, voltScale),
-      enc(encPin) {
+      encR(encPinR), encB(encPinB) {
       
     }
     
     void update() {
-      enc.update();
+      encR.update();
+      encB.update();
       amp.update();
       volt.update();
     }
@@ -249,14 +247,14 @@ class Experiment {
     void update() {
       sensors.update();
       time = now();
-      speed = sensors.enc.getSpeed();
+      speed = 0.5 * (sensors.encR.getSpeed() + sensors.encB.getSpeed());
       current = sensors.amp.getCurrent();
       voltage = sensors.volt.getVoltage();
       efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
 
-    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
-      sensors(ampPin1, ampPin2, voltPin, encPin, ampScale, convertToAmps, voltScale, convertToFriction) {
+    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
+      sensors(ampPin1, ampPin2, voltPin, encPinR, encPinB, ampScale, convertToAmps, voltScale, convertToFriction) {
 
       torque = speed = current = voltage = 0;
     }
@@ -276,21 +274,19 @@ class Experiment {
 
 Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     VOLT_PIN,
-    ENCODER_PIN,
+    COLOR_1R_PIN, COLOR_1B_PIN,
     voltScale, ampFac, voltScale, frictionCoeff);
 
 void setup() {
   // put your setup code here, to run once:
   attachInterrupt(digitalPinToInterrupt(COLOR_1R_PIN), redIncrement, RISING);
   attachInterrupt(digitalPinToInterrupt(COLOR_1B_PIN), blueIncrement, RISING);
-  File results = SD.open("results.xml");
-  XMLWriter Xml(results);
-  
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   experiment.update();
-  experiment.write(Xml);
+  if(ROCKER_PIN)
+    experiment.write(&Xml);
   delay(50);
 }
