@@ -268,8 +268,8 @@ class Experiment {
       efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
 
-    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
-      sensors(ampPin1, ampPin2, voltPin, encPinR, encPinB, ampScale, convertToAmps, voltScale, convertToFriction), motor(mtrPin) {
+    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction, double frictionPot) :
+      sensors(ampPin1, ampPin2, voltPin, encPinR, encPinB, ampScale, convertToAmps, voltScale, convertToFriction, frictionPot), motor(mtrPin) {
 
       torque = speed = current = voltage = 0;
     }
@@ -291,7 +291,7 @@ Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     VOLT_PIN,
     COLOR_1R_PIN, COLOR_1B_PIN,
     MOTOR_PIN,
-    voltScale, ampFac, voltScale, frictionCoeff);
+    voltScale, ampFac, voltScale, frictionCoeff, frictionPotCoeff);
 
 void setup() {
   // put your setup code here, to run once:
