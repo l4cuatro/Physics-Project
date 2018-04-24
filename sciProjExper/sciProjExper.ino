@@ -40,6 +40,7 @@ Comparator Notes
 #define COLOR_1B_PIN ((byte)5)
 #define ROCKER_PIN ((byte)6)
 #define STATUS_LED_PIN ((byte)7)
+#define MOTOR_PIN ((byte)8)
 
 
 double voltScale = .25;
@@ -242,10 +243,23 @@ class Experiment {
       efficiency;
     time_t time;
 
+    Motor motor;
+
     SensorArray sensors;
     
     void update() {
       sensors.update();
+      motor.update(256);
+      time = now();
+      speed = 0.5 * (sensors.encR.getSpeed() + sensors.encB.getSpeed());
+      current = sensors.amp.getCurrent();
+      voltage = sensors.volt.getVoltage();
+      efficiency = (6.283185 * torque * speed) / (voltage * current);
+    }
+    
+    void update(int pwr) {
+      sensors.update();
+      motor.update(pwr);
       time = now();
       speed = 0.5 * (sensors.encR.getSpeed() + sensors.encB.getSpeed());
       current = sensors.amp.getCurrent();
@@ -253,8 +267,8 @@ class Experiment {
       efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
 
-    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
-      sensors(ampPin1, ampPin2, voltPin, encPinR, encPinB, ampScale, convertToAmps, voltScale, convertToFriction) {
+    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
+      sensors(ampPin1, ampPin2, voltPin, encPinR, encPinB, ampScale, convertToAmps, voltScale, convertToFriction), motor(mtrPin) {
 
       torque = speed = current = voltage = 0;
     }
@@ -275,12 +289,23 @@ class Experiment {
 Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     VOLT_PIN,
     COLOR_1R_PIN, COLOR_1B_PIN,
+    MOTOR_PIN,
     voltScale, ampFac, voltScale, frictionCoeff);
 
 void setup() {
   // put your setup code here, to run once:
   attachInterrupt(digitalPinToInterrupt(COLOR_1R_PIN), redIncrement, RISING);
   attachInterrupt(digitalPinToInterrupt(COLOR_1B_PIN), blueIncrement, RISING);
+  Xml.header();
+  Xml.tagOpen("Values");
+  Xml.writeNode("time", "Time");
+  Xml.writeNode("current", "Current");
+  Xml.writeNode("voltage", "Voltage");
+  Xml.writeNode("torque", "Torque");
+  Xml.writeNode("speed", "Speed");
+  Xml.writeNode("efficiency", "Efficiency");
+  Xml.tagClose();
+  experiment.update(0);
 }
 
 void loop() {
