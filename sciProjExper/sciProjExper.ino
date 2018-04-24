@@ -218,7 +218,7 @@ class SensorArray {
     Encoder encR, encB;
     
 
-    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
+    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, double ampScale, double convertToAmps, double voltScale, double convertToFriction, double frictionPot) :
       amp(ampPin1, ampPin2, ampScale, ampScale, convertToAmps),
       volt(voltPin, voltScale),
       encR(encPinR), encB(encPinB) {
