@@ -48,7 +48,8 @@ double ampFac = (1.0);
 double frictionCoeff = (1.0);
 
 File results = SD.open("results.xml");
-XMLWriter Xml(&results);
+XMLWriter XmlSd(&results);
+XMLWriter XmlUsb(&Serial);
 
 volatile int redEncCt = 0,
   blueEncCt = 0;
@@ -296,22 +297,33 @@ void setup() {
   // put your setup code here, to run once:
   attachInterrupt(digitalPinToInterrupt(COLOR_1R_PIN), redIncrement, RISING);
   attachInterrupt(digitalPinToInterrupt(COLOR_1B_PIN), blueIncrement, RISING);
-  Xml.header();
-  Xml.tagOpen("Values");
-  Xml.writeNode("time", "Time");
-  Xml.writeNode("current", "Current");
-  Xml.writeNode("voltage", "Voltage");
-  Xml.writeNode("torque", "Torque");
-  Xml.writeNode("speed", "Speed");
-  Xml.writeNode("efficiency", "Efficiency");
-  Xml.tagClose();
+  XmlSd.header();
+  XmlSd.tagOpen("Values");
+  XmlSd.writeNode("time", "Time");
+  XmlSd.writeNode("current", "Current");
+  XmlSd.writeNode("voltage", "Voltage");
+  XmlSd.writeNode("torque", "Torque");
+  XmlSd.writeNode("speed", "Speed");
+  XmlSd.writeNode("efficiency", "Efficiency");
+  XmlSd.tagClose();
+  XmlUsb.header();
+  XmlUsb.tagOpen("Values");
+  XmlUsb.writeNode("time", "Time");
+  XmlUsb.writeNode("current", "Current");
+  XmlUsb.writeNode("voltage", "Voltage");
+  XmlUsb.writeNode("torque", "Torque");
+  XmlUsb.writeNode("speed", "Speed");
+  XmlUsb.writeNode("efficiency", "Efficiency");
+  XmlUsb.tagClose();
   experiment.update(0);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   experiment.update();
-  if(ROCKER_PIN)
-    experiment.write(&Xml);
+  if(ROCKER_PIN) {
+    experiment.write(&XmlSd);
+    experiment.write(&XmlUsb);
+  }
   delay(50);
 }
