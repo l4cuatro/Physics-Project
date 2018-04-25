@@ -46,6 +46,7 @@ Comparator Notes
 double voltScale = .25;
 double ampFac = (1.0);
 double frictionCoeff = (1.0);
+double frictionPotCoeff = (1.0);
 
 File results = SD.open("results.xml");
 XMLWriter XmlSd(&results);
@@ -105,7 +106,7 @@ class DigiSensor {
     }
     
   public:
-    int getPin() { return pin; }
+    byte getPin() { return pin; }
     int getVal() { return val; }
     virtual void update() = 0;
 };
@@ -155,32 +156,6 @@ class AnaSensor {
 
 };
 
-class Color {
-  AnaSensor red, green, blue, white;
-  protected:
-    int thresh;
-  public:
-    Color(byte rPin, byte gPin, byte bPin, byte wPin, int thresh) : red(rPin), green(gPin), blue(bPin), white(wPin) {
-      this->thresh = thresh;
-    }
-    void update() {
-      red.update();
-      green.update();
-      blue.update();
-      white.update();
-    }
-    int getColor(char color) {
-      if(color == 'r' || color == 'R')
-        return red.getVal();
-      else if(color == 'g' || color == 'G')
-        return green.getVal();
-      else if(color == 'b' || color == 'B')
-        return blue.getVal();
-      else
-        return white.getVal();
-    }
-};
-
 class Voltmeter : public AnaSensor {
   private:
     double scale;
@@ -191,6 +166,9 @@ class Voltmeter : public AnaSensor {
       this->scale = scale;
     }
     int getVoltage() { return val; }
+    double update() {
+      val = (1.0 * analogRead(pin)) / voltScale;
+    }
 };
 
 class Ammeter {
@@ -268,6 +246,11 @@ class Experiment {
       efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
 
+    void init() {
+      motor.update(0);
+      time = now();
+    }
+
     Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction, double frictionPot) :
       sensors(ampPin1, ampPin2, voltPin, encPinR, encPinB, ampScale, convertToAmps, voltScale, convertToFriction, frictionPot), motor(mtrPin) {
 
@@ -315,7 +298,7 @@ void setup() {
   XmlUsb.writeNode("speed", "Speed");
   XmlUsb.writeNode("efficiency", "Efficiency");
   XmlUsb.tagClose();
-  experiment.update(0);
+  experiment.init();
 }
 
 void loop() {
