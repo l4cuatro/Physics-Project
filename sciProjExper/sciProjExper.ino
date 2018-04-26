@@ -171,23 +171,57 @@ class Ammeter {
     double getCurrent() { return current; }
 };
 
+class Brake {
+	private:
+		byte pin;
+		double force,
+			forceTorqueConv,
+			potForceConv;
+	public:
+		Brake(byte pin, double potForceConv, double forceTorqueConv) {
+			this->pin = pin;
+			this->potForceConv = potForceConv;
+			this->forceTorqueConv = forceTorqueConv;
+			force = 0;
+		}
+	
+		double getForce() {
+			return force;
+		}
+		double getTorque() {
+			return torque;
+		}
+		
+		void update() {
+			force =  analogRead(pin) * potForceConv;
+			torque = force * forceTorqueConv; 
+		}
+};
+
 class SensorArray {
   public:
     Ammeter amp;
     Voltmeter volt;
     Encoder enc;
+	Brake brake;
 
-    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
+    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, byte brakePin,
+		double ampScale, double convertToAmps, double voltScale, double potForceConv, double forceTorqueConv) :
       amp(ampPin1, ampPin2, ampScale, ampScale, convertToAmps),
       volt(voltPin, voltScale),
-      enc(encPin){
+      enc(encPin),
+	  brake(brakePin, potForceConv, forceTorqueConv)
+	  {
       
     }
     
     void update() {
+	  nointerrupts();
       enc.update();
       amp.update();
       volt.update();
+	  brake.update();
+	  interrupts();
     }
       
 };
@@ -206,25 +240,20 @@ class Experiment {
 
     SensorArray sensors;
     
-    void update() {
-      sensors.update();
-      motor.update(256);
-      time = now();
-      speed = 0.5 * (sensors.enc.getSpeed());
-      current = sensors.amp.getCurrent();
-      voltage = sensors.volt.getVoltage();
-      efficiency = (6.283185 * torque * speed) / (voltage * current);
-    }
-    
     void update(int pwr) {
       sensors.update();
       motor.update(pwr);
       time = now();
+	  torque = sensors.brake.getTorque();
       speed = sensors.enc.getSpeed();
       current = sensors.amp.getCurrent();
       voltage = sensors.volt.getVoltage();
       efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
+	
+	void update() {
+		update(256);
+	}
 
     Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
       sensors(ampPin1, ampPin2, voltPin, encPin, ampScale, convertToAmps, voltScale, convertToFriction), motor(mtrPin) {
@@ -250,6 +279,8 @@ Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     MOTOR_PIN,
     voltScale, ampFac, voltScale, frictionCoeff);
 
+Adafruit_AlphaNum4 SevenSeg = Adafruit_AlphaNum4();
+	
 byte blinkReps = 0;
 
 void setup() {
@@ -262,6 +293,8 @@ void setup() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   pinMode(MOTOR_PIN, OUTPUT);
   pinMode(ROCKER_PIN, INPUT);
+  SevenSeg.begin();
+  SevenSeg.setBrightness(15);
 }
 
 void loop() {
@@ -274,7 +307,10 @@ void loop() {
   else {
     digitalWrite(STATUS_LED_PIN, LOW);
   }
-  if(blinkReps >= 5) {
+  SevenSeg.clear();
+  SevenSeg.print(experiment.sensors.brake.getForce());
+  SevenSeg.writeDisplay();
+  if(blinkReps >= 10) {
     blinkReps = 0;
     if(digitalRead(WORKING_LED_PIN))
       digitalWrite(WORKING_LED_PIN, LOW);
@@ -282,5 +318,5 @@ void loop() {
       digitalWrite(WORKING_LED_PIN, HIGH);
   }
   blinkReps++;
-  delay(250);
+  delay(100);
 }
