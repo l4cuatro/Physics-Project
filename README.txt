@@ -46,3 +46,16 @@ IR transmitter
 IR receiver
 Voltage dividers
 7-Segment Display
+
+------------------------------------------------------------------------------------------------------
+
+SOFTWARE TODO:
+
+1. Install Adafruit 7-segment display library and dependency
+	7-Segment Display library found here: https://github.com/adafruit/Adafruit_LED_Backpack
+	Dependency (Adafruit_GFX) found here: https://github.com/adafruit/Adafruit-GFX-Library
+	Install through Library Manager
+	
+2. Ensure code compiles
+
+3. Write test program
