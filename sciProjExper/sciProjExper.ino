@@ -30,15 +30,15 @@ Comparator Notes
 */
 
 
-#define AMP_1_PIN ((byte)1)
-#define AMP_2_PIN ((byte)2)
-#define VOLT_PIN ((byte)3)
+#define AMP_1_PIN ((byte)A2)
+#define AMP_2_PIN ((byte)A4)
+#define VOLT_PIN ((byte)A6)
 #define IR_RX_PIN ((byte)4)
 #define IR_TX_PIN ((byte)5)
 #define ROCKER_PIN ((byte)6)
 #define STATUS_LED_PIN ((byte)7)
 #define MOTOR_PIN ((byte)8)
-
+#define WORKING_LED_PIN ((byte)9)
 
 double voltScale = .25;
 double ampFac = (1.0);
@@ -250,6 +250,8 @@ Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     MOTOR_PIN,
     voltScale, ampFac, voltScale, frictionCoeff);
 
+byte blinkReps = 0;
+
 void setup() {
   // put your setup code here, to run once:
   pinMode(IR_RX_PIN, INPUT);
@@ -272,5 +274,13 @@ void loop() {
   else {
     digitalWrite(STATUS_LED_PIN, LOW);
   }
+  if(blinkReps >= 5) {
+    blinkReps = 0;
+    if(digitalRead(WORKING_LED_PIN))
+      digitalWrite(WORKING_LED_PIN, LOW);
+    else
+      digitalWrite(WORKING_LED_PIN, HIGH);
+  }
+  blinkReps++;
   delay(250);
 }

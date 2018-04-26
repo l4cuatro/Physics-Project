@@ -5,9 +5,9 @@ Experiment To Do List: 4/24
 
 2. Assemble circuits
 	Rocker switch to control data collection
-		LED diode to show status of data collection
+		LED diode to show status of data collection (Done)
 	Brake cable tension user interface
-		Potentiometer to control force value
+		Potentiometer to control force value (Done)
 		Quad 7-segment display to show force value
 	Wire everything to Teensy
 
@@ -22,10 +22,6 @@ Experiment Wiring Notes:
 
 Voltmeters:
 	Wires connect to pin 3 (middle pin) on protoboard
-	
-Comparator:
-	Non-Invert is color sensor voltage
-	Invert is reference voltage (connect potentiometer's third lead)
 	
 Rocker Switch:
 
@@ -49,3 +45,4 @@ Force sensor potentiometer
 IR transmitter
 IR receiver
 Voltage dividers
+7-Segment Display
