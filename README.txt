@@ -1,44 +1,52 @@
 Experiment To Do List: 4/24
 
-1. Construct brake assembly
-	Mount brake pad assembly and cable
-		Eye bolts to guide cable and secure spring scale
+1. Mount IR transmitter and receiver
+	Drill hole through spare gear
 
-2. Mount color sensor and cardboard encoder disc
-
-3. Assemble circuits
-	Motor power supply
-		Wire to Talon Motor Controller (Done)
-		Shunt resistor between Talon and Motor (Done)
-			Voltage dividers on breadboard (Done)
-		Voltmeter at motor contact
-			Voltage divider on breadboard (Done)
-		Mount circuit assembly
-			Circuits designed using crimp connectors to allow modular assembly
-	Color Sensor Encoder
-		NTE943M Comparator
-			Potentiometer to tune encoder sensitivity
+2. Assemble circuits
 	Rocker switch to control data collection
-		LED diode to show status of data collection
+		LED diode to show status of data collection (Done)
 	Brake cable tension user interface
-		Potentiometer to control force value
-		Dual seven-segment displays to show force value
+		Potentiometer to control force value (Done)
+		Quad 7-segment display to show force value
 	Wire everything to Teensy
 
-4. Measure cable tension and kinetic braking friction
+3. Measure cable tension and kinetic braking friction
 	Calculate kinetic friction and braking torque
+
+4. Execute experiment
 
 ---------------------------------------------------------------------------------------------------
 
 Experiment Wiring Notes:
 
 Voltmeters:
-	Wires connect to pin 3 (middle pin) on breadboard
-	
-Comparator:
-	Non-Invert is color sensor voltage
-	Invert is reference voltage (connect potentiometer's third lead)
+	Wires connect to pin 3 (middle pin) on protoboard
 	
 Rocker Switch:
 
-Color Sensor:
+----------------------------------------------------------------------------------------------------
+
+Circuits to Build
+
+Ammeter voltmeter 1
+Ammeter voltmeter 2
+Voltmeter
+Rocker switch
+Data status LED
+Force sensor potentiometer
+Voltage dividers
+7-Segment Display
+
+------------------------------------------------------------------------------------------------------
+
+SOFTWARE TODO:
+
+1. Install Adafruit 7-segment display library and dependency
+	7-Segment Display library found here: https://github.com/adafruit/Adafruit_LED_Backpack
+	Dependency (Adafruit_GFX) found here: https://github.com/adafruit/Adafruit-GFX-Library
+	Install through Library Manager
+	
+2. Ensure code compiles
+
+3. Write test program

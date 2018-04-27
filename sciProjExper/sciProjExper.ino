@@ -1,7 +1,11 @@
+#include <Adafruit_LEDBackpack.h>
+
+#include <Adafruit_GFX.h>
+#include <Adafruit_SPITFT.h>
+#include <Adafruit_SPITFT_Macros.h>
+#include <gfxfont.h>
+
 #include <TimeLib.h>
-#include <SPI.h>
-#include <SD.h>
-#include <XMLWriter.h>
 
 /*
 Voltmeter
@@ -33,37 +37,20 @@ Comparator Notes
 */
 
 
-#define AMP_1_PIN ((byte)1)
-#define AMP_2_PIN ((byte)2)
-#define VOLT_PIN ((byte)3)
-#define COLOR_1R_PIN ((byte)4)
-#define COLOR_1B_PIN ((byte)5)
+#define AMP_1_PIN ((byte)A2)
+#define AMP_2_PIN ((byte)A1)
+#define VOLT_PIN ((byte)A1)
+#define BRAKE_POT_PIN ((byte)A9)
 #define ROCKER_PIN ((byte)6)
 #define STATUS_LED_PIN ((byte)7)
 #define MOTOR_PIN ((byte)8)
-
+#define WORKING_LED_PIN ((byte)9)
 
 double voltScale = .25;
-double ampFac = (1.0);
-double frictionCoeff = (1.0);
-double frictionPotCoeff = (1.0);
+double ampFac = (3.3 / 1024.0) * (1000.0);
 
-File results = SD.open("results.xml");
-XMLWriter XmlSd(&results);
-XMLWriter XmlUsb(&Serial);
-
-volatile int redEncCt = 0,
-  blueEncCt = 0;
-
-void redIncrement() {
-  redEncCt++;
-}
-
-void blueIncrement() {
-  blueEncCt++;
-}
-
-
+double forceTorque = (0.4);
+double potForce = (750 / 1024.0);
 
 class Motor {
   private:
@@ -141,7 +128,7 @@ class Encoder : public DigiSensor {
 
 class AnaSensor {
   protected:
-    byte pin;
+    uint8_t pin;
     int val;
 
     byte setPin(byte pin) { return this->pin = pin; }
@@ -150,7 +137,7 @@ class AnaSensor {
   public:
     int update() { return val = analogRead(pin); }
     int getVal() { return val; }
-    AnaSensor(byte pin) {
+    AnaSensor(uint8_t pin) {
       setPin(pin);
     }
 
@@ -162,7 +149,7 @@ class Voltmeter : public AnaSensor {
 
   public:
     double getScale() { return scale; }
-    Voltmeter(byte pin, double scale = voltScale) : AnaSensor(pin) {
+    Voltmeter(uint8_t pin, double scale = voltScale) : AnaSensor(pin) {
       this->scale = scale;
     }
     int getVoltage() { return val; }
@@ -173,41 +160,69 @@ class Voltmeter : public AnaSensor {
 
 class Ammeter {
   private: 
-    int drop;
+    double drop;
     double current;
     double convertFac;
     
   public:
     Voltmeter volt1, volt2;
-    Ammeter(byte voltPin1, byte voltPin2, double volt1Scale, double volt2Scale, double convertFac) : volt1(voltPin1, volt1Scale), volt2(voltPin2, volt2Scale) {
+    Ammeter(uint8_t voltPin1, uint8_t voltPin2, double volt1Scale, double volt2Scale, double convertFac) : volt1(voltPin1, volt1Scale), volt2(voltPin2, volt2Scale) {
       drop = current = 0;
     }
     double update() {
       drop = (volt1.getScale() * volt1.update())- (volt2.getScale() * volt2.update());
-      return current = (1.0 * drop) / convertFac;
+      return current = (1.0 * drop) * convertFac;
     }
     double getCurrent() { return current; }
+};
+
+class Brake {
+	private:
+		uint8_t pin;
+		double force,
+      torque,
+			forceTorqueConv,
+			potForceConv;
+	public:
+		Brake(byte pin, double potForceConv, double forceTorqueConv) {
+			this->pin = pin;
+			this->potForceConv = potForceConv;
+			this->forceTorqueConv = forceTorqueConv;
+			force = 0;
+		}
+	
+		double getForce() {
+			return force;
+		}
+		double getTorque() {
+			return torque;
+		}
+		
+		void update() {
+			force =  ((int)((analogRead(pin) * potForceConv * 1000.0)))/1000.0;
+			torque = force * forceTorqueConv; 
+		}
 };
 
 class SensorArray {
   public:
     Ammeter amp;
     Voltmeter volt;
-    Encoder encR, encB;
-    
+  	Brake brake;
 
-    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, double ampScale, double convertToAmps, double voltScale, double convertToFriction, double frictionPot) :
+    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte brakePin,
+		double ampScale, double convertToAmps, double voltScale, double potForceConv, double forceTorqueConv) :
       amp(ampPin1, ampPin2, ampScale, ampScale, convertToAmps),
       volt(voltPin, voltScale),
-      encR(encPinR), encB(encPinB) {
+	    brake(brakePin, potForceConv, forceTorqueConv)
+	  {
       
     }
     
     void update() {
-      encR.update();
-      encB.update();
-      amp.update();
-      volt.update();
+    amp.update();
+    volt.update();
+	  brake.update();
     }
       
 };
@@ -216,7 +231,6 @@ class Experiment {
     
   public:
     double torque,
-      speed,
       current,
       voltage,
       efficiency;
@@ -226,87 +240,83 @@ class Experiment {
 
     SensorArray sensors;
     
-    void update() {
-      sensors.update();
-      motor.update(256);
-      time = now();
-      speed = 0.5 * (sensors.encR.getSpeed() + sensors.encB.getSpeed());
-      current = sensors.amp.getCurrent();
-      voltage = sensors.volt.getVoltage();
-      efficiency = (6.283185 * torque * speed) / (voltage * current);
-    }
-    
     void update(int pwr) {
       sensors.update();
       motor.update(pwr);
       time = now();
-      speed = 0.5 * (sensors.encR.getSpeed() + sensors.encB.getSpeed());
+	    torque = sensors.brake.getTorque();
       current = sensors.amp.getCurrent();
       voltage = sensors.volt.getVoltage();
-      efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
+	
+	void update() {
+		update(256);
+	}
 
     void init() {
       motor.update(0);
       time = now();
     }
 
-    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPinR, byte encPinB, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction, double frictionPot) :
-      sensors(ampPin1, ampPin2, voltPin, encPinR, encPinB, ampScale, convertToAmps, voltScale, convertToFriction, frictionPot), motor(mtrPin) {
 
-      torque = speed = current = voltage = 0;
+    Experiment(uint8_t ampPin1, uint8_t ampPin2, uint8_t voltPin, uint8_t brakePin, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double potForce, double forceTorque) :
+      sensors(ampPin1, ampPin2, voltPin, brakePin, ampScale, convertToAmps, voltScale, potForce, forceTorque), motor(mtrPin) {
+      torque = current = voltage = 0;
     }
 
-    void write(XMLWriter* xml) {
-       xml->tagOpen("Values");
-       xml->writeNode("time", time);
-       xml->writeNode("current", current);
-       xml->writeNode("voltage", voltage);
-       xml->writeNode("torque", torque);
-       xml->writeNode("speed", speed);
-       xml->writeNode("efficiency", efficiency);
-       xml->tagClose();
+    void write(Print* printer) {
+       String str = String(time) +  "," + String(voltage) +  "," + String(current) +  "," + String(torque) +  ",____" + ",_____";
+       printer->println(str);
+    }
+
+    void writeInit(Print* printer) {
+      String str = "Time (ms),Voltage (V),Current (A),Torque (N*m),Speed (RPM),Efficiency (%)";
+      printer->println(str);
     }
     
 };
 
 Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     VOLT_PIN,
-    COLOR_1R_PIN, COLOR_1B_PIN,
+    BRAKE_POT_PIN,
     MOTOR_PIN,
-    voltScale, ampFac, voltScale, frictionCoeff, frictionPotCoeff);
+    voltScale, ampFac, voltScale, potForce, forceTorque);
+
+Adafruit_7segment SevenSeg = Adafruit_7segment();
+	
+byte blinkReps = 0;
 
 void setup() {
   // put your setup code here, to run once:
-  attachInterrupt(digitalPinToInterrupt(COLOR_1R_PIN), redIncrement, RISING);
-  attachInterrupt(digitalPinToInterrupt(COLOR_1B_PIN), blueIncrement, RISING);
-  XmlSd.header();
-  XmlSd.tagOpen("Values");
-  XmlSd.writeNode("time", "Time");
-  XmlSd.writeNode("current", "Current");
-  XmlSd.writeNode("voltage", "Voltage");
-  XmlSd.writeNode("torque", "Torque");
-  XmlSd.writeNode("speed", "Speed");
-  XmlSd.writeNode("efficiency", "Efficiency");
-  XmlSd.tagClose();
-  XmlUsb.header();
-  XmlUsb.tagOpen("Values");
-  XmlUsb.writeNode("time", "Time");
-  XmlUsb.writeNode("current", "Current");
-  XmlUsb.writeNode("voltage", "Voltage");
-  XmlUsb.writeNode("torque", "Torque");
-  XmlUsb.writeNode("speed", "Speed");
-  XmlUsb.writeNode("efficiency", "Efficiency");
-  XmlUsb.tagClose();
-  experiment.init();
+  experiment.writeInit(&Serial);
+  experiment.motor.update(0);
+  pinMode(STATUS_LED_PIN, OUTPUT);
+  pinMode(MOTOR_PIN, OUTPUT);
+  pinMode(ROCKER_PIN, INPUT_PULLUP);
+  SevenSeg.begin(0x70);
+  SevenSeg.setBrightness(15);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   experiment.update();
-  if(ROCKER_PIN) {
-    experiment.write(&XmlSd);
-    experiment.write(&XmlUsb);
+  if(!digitalRead(ROCKER_PIN)) {
+    experiment.write(&Serial);
+    digitalWrite(STATUS_LED_PIN, HIGH);
   }
-  delay(50);
+  else {
+    digitalWrite(STATUS_LED_PIN, LOW);
+  }
+  SevenSeg.clear();
+  SevenSeg.print(experiment.sensors.brake.getForce(),DEC);
+  SevenSeg.writeDisplay();
+  if(blinkReps >= 10) {
+    blinkReps = 0;
+    if(digitalRead(WORKING_LED_PIN))
+      digitalWrite(WORKING_LED_PIN, LOW);
+    else
+      digitalWrite(WORKING_LED_PIN, HIGH);
+  }
+  blinkReps++;
+  delay(100);
 }
