@@ -1,3 +1,10 @@
+#include <Adafruit_LEDBackpack.h>
+
+#include <Adafruit_GFX.h>
+#include <Adafruit_SPITFT.h>
+#include <Adafruit_SPITFT_Macros.h>
+#include <gfxfont.h>
+
 #include <TimeLib.h>
 
 /*
@@ -33,8 +40,7 @@ Comparator Notes
 #define AMP_1_PIN ((byte)A2)
 #define AMP_2_PIN ((byte)A4)
 #define VOLT_PIN ((byte)A6)
-#define IR_RX_PIN ((byte)4)
-#define IR_TX_PIN ((byte)5)
+#define BRAKE_POT_PIN ((byte)A9)
 #define ROCKER_PIN ((byte)6)
 #define STATUS_LED_PIN ((byte)7)
 #define MOTOR_PIN ((byte)8)
@@ -42,13 +48,8 @@ Comparator Notes
 
 double voltScale = .25;
 double ampFac = (1.0);
-double frictionCoeff = (1.0);
-
-volatile int encCt = 0;
-
-static void encIncrement() {
-  encCt++;
-}
+double forceTorque = (1.0);
+double potForce = (1024.0 / 7.5);
 
 class Motor {
   private:
@@ -126,7 +127,7 @@ class Encoder : public DigiSensor {
 
 class AnaSensor {
   protected:
-    byte pin;
+    uint8_t pin;
     int val;
 
     byte setPin(byte pin) { return this->pin = pin; }
@@ -135,7 +136,7 @@ class AnaSensor {
   public:
     int update() { return val = analogRead(pin); }
     int getVal() { return val; }
-    AnaSensor(byte pin) {
+    AnaSensor(uint8_t pin) {
       setPin(pin);
     }
 
@@ -147,7 +148,7 @@ class Voltmeter : public AnaSensor {
 
   public:
     double getScale() { return scale; }
-    Voltmeter(byte pin, double scale = voltScale) : AnaSensor(pin) {
+    Voltmeter(uint8_t pin, double scale = voltScale) : AnaSensor(pin) {
       this->scale = scale;
     }
     int getVoltage() { return val; }
@@ -161,7 +162,7 @@ class Ammeter {
     
   public:
     Voltmeter volt1, volt2;
-    Ammeter(byte voltPin1, byte voltPin2, double volt1Scale, double volt2Scale, double convertFac) : volt1(voltPin1, volt1Scale), volt2(voltPin2, volt2Scale) {
+    Ammeter(uint8_t voltPin1, uint8_t voltPin2, double volt1Scale, double volt2Scale, double convertFac) : volt1(voltPin1, volt1Scale), volt2(voltPin2, volt2Scale) {
       drop = current = 0;
     }
     double update() {
@@ -173,8 +174,9 @@ class Ammeter {
 
 class Brake {
 	private:
-		byte pin;
+		uint8_t pin;
 		double force,
+      torque,
 			forceTorqueConv,
 			potForceConv;
 	public:
@@ -202,26 +204,21 @@ class SensorArray {
   public:
     Ammeter amp;
     Voltmeter volt;
-    Encoder enc;
-	Brake brake;
+  	Brake brake;
 
-    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, byte brakePin,
+    SensorArray(byte ampPin1, byte ampPin2, byte voltPin, byte brakePin,
 		double ampScale, double convertToAmps, double voltScale, double potForceConv, double forceTorqueConv) :
       amp(ampPin1, ampPin2, ampScale, ampScale, convertToAmps),
       volt(voltPin, voltScale),
-      enc(encPin),
 	  brake(brakePin, potForceConv, forceTorqueConv)
 	  {
       
     }
     
     void update() {
-	  nointerrupts();
-      enc.update();
-      amp.update();
-      volt.update();
+    amp.update();
+    volt.update();
 	  brake.update();
-	  interrupts();
     }
       
 };
@@ -230,7 +227,6 @@ class Experiment {
     
   public:
     double torque,
-      speed,
       current,
       voltage,
       efficiency;
@@ -244,25 +240,23 @@ class Experiment {
       sensors.update();
       motor.update(pwr);
       time = now();
-	  torque = sensors.brake.getTorque();
-      speed = sensors.enc.getSpeed();
+	    torque = sensors.brake.getTorque();
       current = sensors.amp.getCurrent();
       voltage = sensors.volt.getVoltage();
-      efficiency = (6.283185 * torque * speed) / (voltage * current);
     }
 	
 	void update() {
 		update(256);
 	}
 
-    Experiment(byte ampPin1, byte ampPin2, byte voltPin, byte encPin, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double convertToFriction) :
-      sensors(ampPin1, ampPin2, voltPin, encPin, ampScale, convertToAmps, voltScale, convertToFriction), motor(mtrPin) {
+    Experiment(uint8_t ampPin1, uint8_t ampPin2, uint8_t voltPin, uint8_t brakePin, byte mtrPin, double ampScale, double convertToAmps, double voltScale, double potForce, double forceTorque) :
+      sensors(ampPin1, ampPin2, voltPin, brakePin, ampScale, convertToAmps, voltScale, potForce, forceTorque), motor(mtrPin) {
 
-      torque = speed = current = voltage = 0;
+      torque = current = voltage = 0;
     }
 
     void write(Print* printer) {
-       String str = String(time) +  "," + String(voltage) +  "," + String(current) +  "," + String(torque) +  "," + String(speed) +  "," + String(efficiency);
+       String str = String(time) +  "," + String(voltage) +  "," + String(current) +  "," + String(torque) +  ",____" + ",_____";
        printer->println(str);
     }
 
@@ -275,25 +269,22 @@ class Experiment {
 
 Experiment experiment = Experiment(AMP_1_PIN, AMP_2_PIN,
     VOLT_PIN,
-    IR_RX_PIN,
+    BRAKE_POT_PIN,
     MOTOR_PIN,
-    voltScale, ampFac, voltScale, frictionCoeff);
+    voltScale, ampFac, voltScale, potForce, forceTorque);
 
-Adafruit_AlphaNum4 SevenSeg = Adafruit_AlphaNum4();
+Adafruit_7segment SevenSeg = Adafruit_7segment();
 	
 byte blinkReps = 0;
 
 void setup() {
   // put your setup code here, to run once:
-  pinMode(IR_RX_PIN, INPUT);
-  attachInterrupt(digitalPinToInterrupt(IR_RX_PIN), encIncrement, RISING);
   experiment.writeInit(&Serial);
   experiment.motor.update(0);
-  pinMode(IR_TX_PIN, OUTPUT);
   pinMode(STATUS_LED_PIN, OUTPUT);
   pinMode(MOTOR_PIN, OUTPUT);
   pinMode(ROCKER_PIN, INPUT);
-  SevenSeg.begin();
+  SevenSeg.begin(0x70);
   SevenSeg.setBrightness(15);
 }
 
@@ -308,7 +299,7 @@ void loop() {
     digitalWrite(STATUS_LED_PIN, LOW);
   }
   SevenSeg.clear();
-  SevenSeg.print(experiment.sensors.brake.getForce());
+  SevenSeg.print(experiment.sensors.brake.getForce(),DEC);
   SevenSeg.writeDisplay();
   if(blinkReps >= 10) {
     blinkReps = 0;

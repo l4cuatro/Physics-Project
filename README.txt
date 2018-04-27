@@ -25,13 +25,6 @@ Voltmeters:
 	
 Rocker Switch:
 
-IR-Emitting Diode (NTE3029B):
-	Wired like regular LED
-	Digital port with resistor
-
-IR Photodiode (NTE3033):
-	Analog port
-
 ----------------------------------------------------------------------------------------------------
 
 Circuits to Build
@@ -42,8 +35,6 @@ Voltmeter
 Rocker switch
 Data status LED
 Force sensor potentiometer
-IR transmitter
-IR receiver
 Voltage dividers
 7-Segment Display
 
